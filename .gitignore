@@ -1,0 +1,7 @@
+.project
+.settings/
+platforms/**
+plugins/**
+cordova/plugins/**
+www/cordova/plugins/**
+**/eva-app-credentials.js
