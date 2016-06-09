@@ -1,9 +1,16 @@
-window.init_demo_app = function() {
 
+window.init_demo_app = function() {
+	var HOST = "https://chat.evature.com";
+	HOST = "http://192.168.86.188:8000"
+	
+	$(function() {
+		
+	
 	// To get your Site Code and API Key register to Evature's webservice at http://www.evature.com/registration/form
 	var site_code = credentials.site_code; // this is where you put your Site Code 
 	var api_key =  credentials.api_key; // this is where you put your API Key
 	
+	eva.startRecordingAfterQuestion = true;
 
 	eva.init(site_code, api_key, function(result) {
 		console.log("Eva init result ",result);
@@ -11,12 +18,12 @@ window.init_demo_app = function() {
 			$('.eva-record_button').hide();
 		}
 		else {
-			eva.setupUI();
+			eva.setupUI({minZIndex: 57});
 		}
 	});
 
 	
-	eva.scope = 'f'; // flights only
+	eva.scope = 'fp'; // flights only
 	
 	var dateFormatOptions =  {
 		    weekday: "long", year: "numeric", month: "short",
@@ -44,9 +51,33 @@ window.init_demo_app = function() {
 			return ": "+ new Date(+new Date() + 3600000*(2+Math.random()*4)).toLocaleTimeString("en-us", dateFormatOptions);
 		},
 		
+		airline: function(data) {
+			console.log("Asking for airline ", data);
+			if (data) {
+				data = data[0];
+				data_str = JSON.stringify(data);
+				console.log(">>> data_str");
+				var p = $.Deferred(function(defer) {
+					$.ajax({
+						url:  HOST+"/flight_status", 
+						type: "post",
+						data: data_str,
+						success: function(html) {
+							result = new eva.AppResult(false, 
+									"<div class='flight-status-cont'>"+html+"</div>", true);
+							defer.resolve(result);
+						}
+					})
+				});
+				p.SayIt = "Flight "+data.Name + " "+data.Number;
+				return p;
+			}
+		},
+		
 		// What is my gate number"
 		gate: function() {
-			return ": Gate "+(1+Math.random()*12|0) +" at Terminal "+["A","B","C"][Math.random()*3|0];
+			return new eva.AppResult(true, "<h3>Gate 12 at Terminal B</h3>", true);
+			//return ": Gate "+(1+Math.random()*12|0) +" at Terminal "+["A","B","C"][Math.random()*3|0];
 		},
 		
 		//"What is the departure time?"
@@ -69,17 +100,17 @@ window.init_demo_app = function() {
 		
 		boardingPass: function() {
 			// "Show my boarding pass" 
-			console.log("This is where trip details will show");
-			return new eva.AppResult("", "<table style='border:1px solid white; margin:5px; padding:5px; text-align:center'><tr><th>Code</th><th>Name</th></tr><tr><td>ABC</td><td>James Jones</td></tr></table>", true);
+			console.log("This is where boarding pass will show");
+			return new eva.AppResult("Here is your boarding pass", "<div class='demo-boarding-pass'></div>", true);
 		},
 		
 		itinerary: function() {
 			// "Show my trip details"
-			$('#eva-cover').fadeOut(function() {
+			/*$('#eva-cover').fadeOut(function() {
 				alert("this is where you would show the itinerary");
-			}); 
-			// nothing to add to the default handling - just show&speak the Eva reply
-			return true;
+			});*/
+			console.log("This is where boarding pass will show");
+			return new eva.AppResult("Here is your itinerary", "<div class='demo-itinerary'></div>", true);
 		},
 		
 
@@ -127,23 +158,58 @@ window.init_demo_app = function() {
 	             nonstop, seatClass,  airlines,
 	             redeye,  food, seatType,
 	             sortBy,  sortOrder ) {
-			
+			/*
 			console.log("This is where we would search for flights matching the criteria: from "+originName+" to "+destinationName);
+			*/
 			
-			var price = 100+Math.random()*300|0;
-			var say_it = "I found a flight costing "+price+" $, Would you like to buy it?"
-			var html = "I found a flight costing <span style='color:yellow'>"+price+"$</span><br>Would you like to buy it?<br><button class='buy'>Buy!</button><br>or <a class='see-more'>see more results</a>";
-			
-			// example returning one value for display and another value for the speaking, in a promise 
-			var p = $.Deferred(function( defer ) {
-				setTimeout(function() {
-					var result = new eva.AppResult(say_it, html, true, 1);
-					defer.resolve(result);
-				}, 2500);
+			var p = $.Deferred(function(defer) {
+				$.ajax({
+					url: HOST+"/amadeus_flight_search",
+					type: "post",
+					data: JSON.stringify({
+						origin: { allAirportsCode: originCode},
+						destination: {allAirportsCode: destinationCode},
+						departDateMin: departDateMin,
+						departDateMax: departDateMax,
+						returnDateMin: returnDateMin,
+						returnDateMax: returnDateMax,
+			            travelers: travelers,
+			            attributes: {
+			            	nonstop: nonstop,
+			            	seatClass: seatClass,
+			            	airlines: airlines,
+			            	redeye: redeye,
+			            	food: food,
+			            	seatType: seatType
+			            },
+			            sortBy: sortBy,
+			            sortOrder: sortOrder
+					}),
+					success: function(html) {
+						var count = (html.match(/<tr class="outbound">/g) || []).length;
+						var result;
+						if (count > 1) {
+							result = new eva.AppResult("Here are the top "+count+" results", 
+									"Here are the top "+count+" results:<br> <div class='flight-results-cont'>"+html+"</div>", true, count);
+						}
+						else if (count > 0) {
+							result = new eva.AppResult("", 
+									"<div class='flight-results-cont'>"+html+"</div>", true, count);
+						}
+						else {
+							result = new eva.AppResult("Sorry, no matching results found.", false, false, 0);
+						}
+						defer.resolve(result);
+					}
+				})
 			});
 			return p;
+			
+			
 		},
 			
 	}; // end of callbacks
-	
+	});	
 } // end of init_demo_app
+
+document.addEventListener('deviceready', init_demo_app, false);
